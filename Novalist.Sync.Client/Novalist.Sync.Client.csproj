@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ 
+ <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Novalist.Sync.Contracts"
+                      Version="1.0.0-local.20261019160604.r212811309" />
+
+    <PackageReference Include="YDotNet" Version="0.6.0" />
+    <PackageReference Include="YDotNet.Native.Linux" Version="0.6.0" />
+    <PackageReference Include="YDotNet.Native.Win32" Version="0.6.0" />
+    <PackageReference Include="YDotNet.Native.MacOS" Version="0.6.0" />
+  </ItemGroup>
+
+</Project>
