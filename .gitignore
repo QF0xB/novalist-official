@@ -103,5 +103,8 @@ __pycache__/
 /.direnv/
 /devenv.local.nix
 
+# Local NuGet feed contents.
+.nuget-feed/
+
 # Rider configuration
 .idea/
