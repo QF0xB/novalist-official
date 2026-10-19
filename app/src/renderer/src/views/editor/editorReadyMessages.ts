@@ -35,7 +35,7 @@ export function createEditorReadyMessages(context: EditorHandlerContext): Editor
       const initialHtml = editorPane(useProjectStore.getState(), pane).html
       if (initialHtml !== null) {
         loadingRef.current = true
-        live.setSceneContext(editorPane(useProjectStore.getState(), pane).sceneId ?? '')
+        live.setSceneContext(editorPane(useProjectStore.getState(), pane).sceneId ?? '', useProjectStore.getState().projectPath ?? '')
         live.setContent(initialHtml)
         loadingRef.current = false
         lastReportedHtmlRef.current = initialHtml

@@ -18,7 +18,7 @@ export interface ProofingStatus {
 /** The editor page's global functions the host is allowed to call. */
 export interface EditorWindow extends Window {
   setContent(html: string): void
-  setSceneContext(sceneId: string): void
+  setSceneContext(sceneId: string, projectScope?: string): void
   /** Clean stored HTML and plain text currently in the live contenteditable. */
   getContent(): string
   getPlainText(): string

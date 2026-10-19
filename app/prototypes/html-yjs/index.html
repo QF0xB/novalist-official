@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Imported prose must not fetch remote images, fonts, or styles. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src data: blob:; connect-src 'self' ws://127.0.0.1:5187; base-uri 'none'; object-src 'none'; frame-src 'none'">
+    <title>Novalist HTML collaboration prototype</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="./style.css">
+    <script src="/editor/purify.min.js"></script>
+    <script src="/editor/scene-html.js"></script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p>Maintainer evaluation · ProseMirror + Yjs 13</p>
+        <h1>HTML scenes, collaborative editing</h1>
+        <p>Two independent documents exchange binary updates locally. HTML remains the import/export format.</p>
+        <p>This is an in-memory experiment. Reloading discards edits. Comment/footnote bodies, pagination, grammar tools, and project storage are not integrated.</p>
+      </header>
+      <section aria-labelledby="import-heading">
+        <h2 id="import-heading">HTML compatibility</h2>
+        <label for="source">Source HTML fragment</label>
+        <textarea id="source" spellcheck="false"></textarea>
+        <div class="controls">
+          <button id="import" type="button">Import into fresh demo</button>
+          <button id="sample" type="button">Load sample</button>
+          <label>Open HTML copy <input id="file" type="file" accept=".html,.htm,text/html"></label>
+        </div>
+        <p>Import resets both demo documents and undo histories. Only use a copy of scene HTML; .novalist identity comments and project files are outside this experiment.</p>
+        <p id="fidelity" role="status"></p>
+        <details>
+          <summary>Initial import fidelity report</summary>
+          <pre id="report"></pre>
+        </details>
+      </section>
+      <section aria-labelledby="collaboration-heading">
+        <h2 id="collaboration-heading">Try collaboration</h2>
+        <div class="controls">
+          <button id="connection" type="button" aria-pressed="false">Disconnect peers</button>
+          <output id="connection-status" aria-live="polite"></output>
+          <output id="convergence" aria-live="polite"></output>
+        </div>
+        <p>Each pane lists the participants it can see. Focus or select text in one pane to see its named cursor and selection in the other. Disconnect to remove remote presence, edit both panes, then reconnect. Undo in one pane should keep the other person's edits.</p>
+        <div class="peers">
+          <article id="alice" aria-label="Alice workspace"></article>
+          <article id="bob" aria-label="Bob workspace"></article>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

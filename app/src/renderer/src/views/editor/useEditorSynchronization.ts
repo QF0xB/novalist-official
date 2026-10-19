@@ -34,7 +34,7 @@ export function useEditorScene({ editorRef, sceneHtml, lastReportedHtmlRef, load
   useLayoutEffect(() => {
     const editor = editorRef.current
     if (!editor || sceneHtml === null) return
-    editor.setSceneContext(openSceneId ?? '')
+    editor.setSceneContext(openSceneId ?? '', useProjectStore.getState().projectPath ?? '')
     if (sceneHtml === lastReportedHtmlRef.current) return
     loadingRef.current = true
     editor.setContent(sceneHtml)

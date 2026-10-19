@@ -123,7 +123,7 @@ function reportContentChanged() {
         window.sendMessage({
             type: 'contentChanged',
             html: html,
-            plainText: window.NovalistEditorState.editor.innerText || ''
+            plainText: window.getPlainText()
         });
     }
 }
