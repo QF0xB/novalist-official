@@ -21,6 +21,8 @@
     ELECTRON_OVERRIDE_DIST_PATH = "${pkgs.electron_42.dist}";
     # electron-vite resolves the executable itself rather than using require('electron').
     ELECTRON_EXEC_PATH = "${pkgs.electron_42}/bin/electron";
+    # Playwright's downloaded Linux browsers are not patched for NixOS.
+    PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH = "${pkgs.chromium}/bin/chromium";
   };
 
   # Stable SDK path for IDEs such as Rider, including the sdk/ directory.
