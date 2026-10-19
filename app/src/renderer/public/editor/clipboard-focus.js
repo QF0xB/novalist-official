@@ -13,6 +13,8 @@ function isTextEditingShortcut(e) {
     // the only place a writer ever presses them from.
     var navKeys = ['arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'home', 'end'];
     if (navKeys.includes(k)) return !e.altKey;
+    // Ctrl+Backspace and Ctrl+Delete remove a word, the same native editing.
+    if (k === 'backspace' || k === 'delete') return !e.altKey;
     // Ctrl+(no shift): select-all, copy, paste, cut, undo, redo. On Apple
     // keyboards Cmd+B/I/U are the system bold/italic/underline gestures and
     // contenteditable applies them natively, so they stay reserved: the result
