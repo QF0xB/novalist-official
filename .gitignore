@@ -108,3 +108,7 @@ __pycache__/
 
 # Rider configuration
 .idea/
+*.DotSettings.user
+
+# Codegraph
+.codegraph/
