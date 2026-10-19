@@ -107,10 +107,29 @@ function toDom(document: Document, node: Y.XmlElement | Y.XmlText | Y.XmlHook): 
         throw new UnsupportedSceneContentError('Unsupported Yjs XML node.')
     }
 
-    const element = document.createElement(node.nodeName)
+    let element: HTMLElement
 
-    for (const [name, value] of Object.entries(node.getAttributes())) {
-        element.setAttribute(name, String(value))
+    try {
+        element = document.createElement(node.nodeName)
+
+        for (const [name, value] of Object.entries(node.getAttributes())) {
+            element.setAttribute(name, String(value))
+        }
+    } catch (error) {
+        // DOM exceptions originate in JSDOM's realm, so compare their name
+        // rather than using this process's DOMException constructor.
+        if (
+            typeof error === 'object' &&
+            error !== null &&
+            'name' in error &&
+            error.name === 'InvalidCharacterError'
+        ) {
+            throw new UnsupportedSceneContentError(
+                'Invalid scene element or attribute name.'
+            )
+        }
+
+        throw error
     }
 
     // Appending to a template element itself would not populate its content.

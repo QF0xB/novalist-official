@@ -132,3 +132,54 @@ test('projection rejects text marks instead of rendering them as literal markup'
         doc.destroy()
     }
 })
+
+for (const kind of ['element', 'attribute']) {
+    test(`projection rejects an invalid ${kind} name after binary reload`, () => {
+        const original = new Y.Doc()
+        const restored = new Y.Doc()
+
+        try {
+            const element = new Y.XmlElement(
+                kind === 'element' ? 'invalid name' : 'p'
+            )
+
+            if (kind === 'attribute') {
+                element.setAttribute('invalid name', 'value')
+            }
+
+            original.getXmlFragment(SCENE_FRAGMENT).insert(0, [element])
+
+            // Simulate receiving this structure through a binary Yjs update.
+            Y.applyUpdate(restored, Y.encodeStateAsUpdate(original))
+            const before = Y.encodeStateAsUpdate(restored)
+
+            assert.throws(
+                () => projectScene(sanitizer, restored),
+                UnsupportedSceneContentError
+            )
+
+            // Failed projection must not mutate the collaborative document.
+            assert.deepEqual(Y.encodeStateAsUpdate(restored), before)
+        } finally {
+            original.destroy()
+            restored.destroy()
+        }
+    })
+}
+
+test('projection rejects embedded XML text', () => {
+    const doc = new Y.Doc()
+
+    try {
+        const text = new Y.XmlText()
+        doc.getXmlFragment(SCENE_FRAGMENT).insert(0, [text])
+        text.insertEmbed(0, { kind: 'unsupported' })
+
+        assert.throws(
+            () => projectScene(sanitizer, doc),
+            UnsupportedSceneContentError
+        )
+    } finally {
+        doc.destroy()
+    }
+})
