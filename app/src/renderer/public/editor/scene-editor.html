@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<!-- The ProseMirror scene editor. Shares the prose styles and the sanitizer
+     with editor.html; everything else lives in the generated bundle, built
+     from app/src/sceneEditor. -->
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="editor.css">
+<link rel="stylesheet" href="editor-motion.css">
+<link rel="stylesheet" href="scene-editor-generated/scene-editor.css">
+</head>
+<body>
+<div id="editor-wrapper">
+    <div id="scene-notice" role="status" hidden></div>
+    <div id="editor" spellcheck="false" lang="en"></div>
+</div>
+<script src="purify.min.js"></script>
+<script src="scene-html.js"></script>
+<script src="scene-editor-generated/scene-editor.js"></script>
+</body>
+</html>

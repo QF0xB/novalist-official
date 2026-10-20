@@ -1,0 +1,76 @@
+/* ProseMirror keeps typed whitespace; the view needs pre-wrap to show it. */
+#editor {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  outline: none;
+}
+
+/* Prose between blocks keeps its own line, as it did in the old editor. */
+#editor [data-nv-loose] {
+  display: block;
+}
+
+/* Structures stored verbatim: visible, selectable as a whole, not editable. */
+#editor .nv-verbatim {
+  cursor: default;
+}
+
+#editor .ProseMirror-selectednode {
+  outline: var(--nl-space-hairline, 1px) solid var(--caret);
+}
+
+#scene-notice {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: var(--nl-space-sm, 8px) var(--padding-h, 24px);
+  background: var(--selection-bg);
+  color: var(--fg);
+  font-size: var(--chrome-font-sm, 12px);
+}
+
+#scene-notice[hidden] {
+  display: none;
+}
+
+/* ── Book-set prose ───────────────────────────────────────────────
+   Justified, hyphenated text in a reading measure, paragraphs marked by a
+   first-line indent and a small gap, the opening paragraph and the first one
+   after a heading, a rule or an empty line set flush - as a printed novel
+   does, and as NovelCrafter's write view does. Explicit alignment, poetry and
+   lists keep their own rules. */
+#editor {
+  box-sizing: border-box;
+  max-width: min(100%, var(--scene-measure, 36em));
+  margin-inline: auto;
+  text-align: justify;
+  hyphens: auto;
+  text-wrap: pretty;
+}
+
+#editor p,
+#editor [data-nv-loose] {
+  margin: 0 0 var(--scene-paragraph-gap, 0.45em);
+  text-indent: var(--scene-indent, 1.5em);
+}
+
+#editor > :first-child,
+#editor > :is(.nv-style-heading, .nv-style-subheading, hr, h1, h2, h3, h4, h5, h6, blockquote, ul, ol) + :is(p, [data-nv-loose]),
+#editor > p:has(> br:only-child) + :is(p, [data-nv-loose]),
+#editor li :is(p, [data-nv-loose]),
+#editor blockquote :is(p, [data-nv-loose]) {
+  text-indent: 0;
+}
+
+#editor .nv-style-heading,
+#editor .nv-style-subheading,
+#editor h1, #editor h2, #editor h3, #editor h4, #editor h5, #editor h6 {
+  text-align: left;
+  hyphens: manual;
+  margin: 0.6em 0 0.5em;
+}
+
+#editor > .nv-style-heading:first-child,
+#editor > .nv-style-subheading:first-child {
+  margin-top: 0;
+}

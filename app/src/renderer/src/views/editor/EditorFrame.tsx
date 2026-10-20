@@ -79,7 +79,7 @@ export function EditorFrame({ paneId }: { paneId?: string }): React.JSX.Element 
       <iframe
         ref={iframeRef}
         className="editor-frame"
-        src="./editor/editor.html"
+        src="./editor/scene-editor.html"
         title="editor"
         sandbox="allow-scripts allow-same-origin"
       />

@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.web.json",
+  "compilerOptions": { "allowImportingTsExtensions": true, "types": ["vite/client"] },
+  "include": ["*.ts", "../sceneModel/*.ts", "../renderer/src/env.d.ts"]
+}

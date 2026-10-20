@@ -1,5 +1,5 @@
 import { DOMSerializer } from 'prosemirror-model'
-import type { Mark, Node as ModelNode } from 'prosemirror-model'
+import type { Fragment, Mark, Node as ModelNode } from 'prosemirror-model'
 import { sceneSchema, type ExtraAttributes } from './schema.ts'
 
 /** Sanitizes scene HTML with the editor's policy, in a given DOM document. */
@@ -234,6 +234,11 @@ export function sceneFromHtml(environment: SceneHtmlEnvironment, html: string): 
  * exports, previews and the conversion check. Not used for editing.
  */
 export function sceneToHtml(document: Document, doc: ModelNode): string {
+  return sceneFragmentToHtml(document, doc.content)
+}
+
+/** The same rendering for any part of a scene, e.g. a copied selection. */
+export function sceneFragmentToHtml(document: Document, content: Fragment): string {
   const base = DOMSerializer.nodesFromSchema(sceneSchema)
   const serializer = new DOMSerializer({
     ...base,
@@ -250,7 +255,7 @@ export function sceneToHtml(document: Document, doc: ModelNode): string {
     }
   }, DOMSerializer.marksFromSchema(sceneSchema))
   const holder = document.createElement('div')
-  holder.appendChild(serializer.serializeFragment(doc.content, { document }))
+  holder.appendChild(serializer.serializeFragment(content, { document }))
   holder.querySelectorAll('nv-loose, nv-raw').forEach(wrapper => {
     if (wrapper.localName === 'nv-raw') {
       const template = document.createElement('template')

@@ -1,0 +1,171 @@
+/* The formatting bubble over a selection: a small tab (word count, undo, redo)
+   over a compact bar, left-aligned with the selection. Colours come from the
+   frame theme (setTheme), so it follows light and dark themes. */
+.nv-bubble {
+  --bubble-bg: color-mix(in srgb, var(--fg) 7%, var(--bg));
+  --bubble-border: color-mix(in srgb, var(--fg) 14%, transparent);
+  --bubble-muted: color-mix(in srgb, var(--fg) 62%, transparent);
+  position: fixed;
+  z-index: 20;
+  display: none;
+  flex-direction: column;
+  align-items: flex-start;
+  font: 500 11px/1 system-ui, sans-serif;
+  color: var(--fg);
+  opacity: 0;
+  transform: translateY(3px);
+  transition: opacity 100ms ease-out, transform 100ms ease-out;
+}
+
+.nv-bubble.visible {
+  display: flex;
+  opacity: 1;
+  transform: none;
+}
+
+@starting-style {
+  .nv-bubble.visible {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+
+.nv-bubble-tab,
+.nv-bubble-bar {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  border: 1px solid var(--bubble-border);
+  background: var(--bubble-bg);
+}
+
+/* The tab sits on the bar like a folder tab: no border between them. */
+.nv-bubble-tab {
+  position: relative;
+  z-index: 1;
+  margin-bottom: -1px;
+  padding: 2px 3px 1px 7px;
+  border-bottom-color: var(--bubble-bg);
+  border-radius: 5px 5px 0 0;
+}
+
+.nv-bubble-count {
+  margin-right: 4px;
+  color: var(--bubble-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.nv-bubble-bar {
+  padding: 3px;
+  border-radius: 0 6px 6px 6px;
+  box-shadow: 0 6px 18px color-mix(in srgb, black 28%, transparent);
+}
+
+.nv-bubble button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--bubble-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.nv-bubble-tab button {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 2px;
+}
+
+.nv-bubble button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--fg) 10%, transparent);
+  color: var(--fg);
+}
+
+.nv-bubble button.active {
+  background: color-mix(in srgb, var(--caret) 24%, transparent);
+  color: var(--fg);
+}
+
+.nv-bubble button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.nv-bubble button:focus-visible {
+  outline: 2px solid var(--caret);
+  outline-offset: -1px;
+}
+
+.nv-bubble svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nv-bubble-tab svg {
+  width: 12px;
+  height: 12px;
+}
+
+.nv-bubble-chevron svg {
+  width: 10px;
+  height: 10px;
+}
+
+.nv-bubble-separator {
+  width: 1px;
+  height: 16px;
+  margin: 0 3px;
+  background: var(--bubble-border);
+}
+
+/* Paragraph style and list choices. */
+.nv-bubble-popup {
+  position: absolute;
+  top: 100%;
+  display: none;
+  flex-direction: column;
+  min-width: 140px;
+  margin-top: 4px;
+  padding: 3px;
+  border: 1px solid var(--bubble-border);
+  border-radius: 6px;
+  background: var(--bubble-bg);
+  box-shadow: 0 6px 18px color-mix(in srgb, black 28%, transparent);
+}
+
+.nv-bubble-popup.visible {
+  display: flex;
+}
+
+.nv-bubble .nv-bubble-popup button {
+  justify-content: flex-start;
+  height: 26px;
+  padding: 0 8px;
+  font-size: 12px;
+  color: var(--fg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nv-bubble {
+    transition: none;
+  }
+}
+
+@media print {
+  .nv-bubble {
+    display: none !important;
+  }
+}
