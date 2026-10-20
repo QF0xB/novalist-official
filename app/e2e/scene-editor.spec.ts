@@ -246,3 +246,96 @@ test('selecting text shows the formatting bubble, which formats without losing t
   await page.keyboard.press('ArrowRight')
   await expect(bubble).toBeHidden()
 })
+
+const finding = (offset: number, length: number, type: string, replacement: string) =>
+  ({ offset, length, type, message: `Fixture ${type}`, replacements: [replacement] })
+
+test('grammar and spelling findings are underlined, corrected from the popup and never saved', async ({ page }) => {
+  await page.evaluate(findings => {
+    const e = window as unknown as EditorWindow
+    e.setContent('<p>Ths is teh end.</p><p>Second line.</p>')
+    e.setGrammarCheckEnabled(true)
+    e.setGrammarIssues(JSON.stringify(findings))
+  }, [finding(0, 3, 'grammar', 'This'), finding(7, 3, 'spelling', 'the')])
+  await expect(page.locator('#editor .grammar-issue')).toHaveText(['Ths', 'teh'])
+  await expect(page.locator('#editor .grammar-issue[data-issue-type="spelling"]')).toHaveText('teh')
+  expect(await page.evaluate(() => (window as unknown as EditorWindow).getProofingStatus()))
+    .toEqual({ enabled: true, checking: false, grammarCount: 1, spellingCount: 1 })
+  // Underlines are presentation only.
+  expect(await page.evaluate(() => (window as unknown as EditorWindow).getContent())).not.toContain('grammar')
+
+  await page.locator('#editor .grammar-issue', { hasText: 'teh' }).click()
+  await expect(page.locator('#grammar-popup')).toBeVisible()
+  await expect(page.locator('#grammar-popup .gp-message')).toHaveText('Fixture spelling')
+  await page.locator('#grammar-popup .gp-suggestion', { hasText: 'the' }).click()
+  await expect(page.locator('#grammar-popup')).toBeHidden()
+  await expect(page.locator('#editor p').first()).toHaveText('Ths is the end.')
+  // The other finding stays on its word.
+  await expect(page.locator('#editor .grammar-issue')).toHaveText(['Ths'])
+  await page.locator('#editor .grammar-issue', { hasText: 'Ths' }).click()
+  await page.locator('#grammar-popup .gp-suggestion', { hasText: 'This' }).click()
+  await expect(page.locator('#editor p').first()).toHaveText('This is the end.')
+  // A correction is one undoable edit.
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect(page.locator('#editor p').first()).toHaveText('Ths is the end.')
+})
+
+test('typing moves underlines with their words and drops the one being edited', async ({ page }) => {
+  await page.evaluate(findings => {
+    const e = window as unknown as EditorWindow
+    e.setContent('<p>Ths is teh end.</p>')
+    e.setGrammarCheckEnabled(true)
+    e.setGrammarIssues(JSON.stringify(findings))
+  }, [finding(0, 3, 'grammar', 'This'), finding(7, 3, 'spelling', 'the')])
+  await caretAt(page, 'Ths', 0)
+  await page.keyboard.type('So ')
+  await expect(page.locator('#editor .grammar-issue')).toHaveText(['Ths', 'teh'])
+  await caretAt(page, 'teh', 2)
+  await page.keyboard.type('x')
+  await expect(page.locator('#editor .grammar-issue')).toHaveText(['Ths'])
+  await expect(page.locator('#editor p')).toHaveText('So Ths is texh end.')
+})
+
+test('the host is asked to check after a pause, and answers for older text are ignored', async ({ page }) => {
+  await page.evaluate(() => {
+    const frame = document.createElement('iframe')
+    frame.id = 'child'
+    frame.src = './scene-editor.html'
+    document.body.append(frame)
+    ;(window as unknown as { requests: unknown[] }).requests = []
+    window.addEventListener('message', event => {
+      const raw = (event.data as { novalistEditor?: string }).novalistEditor
+      const message = raw && JSON.parse(raw)
+      if (message?.type === 'grammarCheckRequest') (window as unknown as { requests: unknown[] }).requests.push(message)
+    })
+  })
+  const child = page.frameLocator('#child')
+  await expect(child.locator('#editor')).toHaveAttribute('data-editor-engine', 'prosemirror-scene')
+  await child.locator('body').evaluate(() => {
+    const e = window as unknown as EditorWindow
+    e.setContent('<p>Ths is fine.</p><p>Line<br>two</p>')
+    e.setGrammarCheckEnabled(true)
+  })
+  const requests = () => page.evaluate(() => (window as unknown as { requests: Array<{ requestId: number; plainText: string }> }).requests)
+  await expect.poll(async () => (await requests()).length, { timeout: 4000 }).toBe(1)
+  const [request] = await requests()
+  // Blocks and hard breaks are newlines, so offsets map back onto the document.
+  expect(request.plainText).toBe('Ths is fine.\nLine\ntwo')
+  expect(await child.locator('body').evaluate(() => (window as unknown as EditorWindow).getProofingStatus().checking)).toBe(true)
+
+  // An edit after the request makes its answer stale.
+  await child.locator('#editor p').first().click()
+  await page.keyboard.press('End')
+  await page.keyboard.type('!')
+  await child.locator('body').evaluate((element, id) =>
+    (window as unknown as EditorWindow).setGrammarIssues(JSON.stringify([{ offset: 0, length: 3, type: 'grammar', message: 'x', replacements: ['This'] }]), id), request.requestId)
+  await expect(child.locator('#editor .grammar-issue')).toHaveCount(0)
+
+  // The fresh request is answered and applied.
+  await expect.poll(async () => (await requests()).length, { timeout: 4000 }).toBe(2)
+  const fresh = (await requests())[1]
+  expect(fresh.plainText).toBe('Ths is fine.!\nLine\ntwo')
+  await child.locator('body').evaluate((element, id) =>
+    (window as unknown as EditorWindow).setGrammarIssues(JSON.stringify([{ offset: 14, length: 4, type: 'style', message: 'x', replacements: [] }]), id), fresh.requestId)
+  await expect(child.locator('#editor .grammar-issue')).toHaveText('Line')
+})

@@ -16,6 +16,7 @@ import { emptyScene, sceneFragmentToHtml, sceneFromHtml } from '../sceneModel/ht
 import { sceneSchema } from '../sceneModel/schema.ts'
 import { bubbleMenu } from './bubbleMenu.ts'
 import { formattingState, setAlignment, setParagraphStyle, toggleList } from './commands.ts'
+import { createProofing } from './proofing.ts'
 import './style.css'
 
 declare global {
@@ -50,6 +51,10 @@ let loading = false
 let contentTimer: ReturnType<typeof setTimeout> | null = null
 let lastReported = ''
 let imageBase = ''
+/** Localized labels the host pushes for menus and the proofing popup. */
+let labels: Record<string, string> = {}
+
+const proofing = createProofing({ sendMessage, labels: () => labels })
 
 /**
  * An empty line the writer makes is stored like the old editor stored it,
@@ -98,6 +103,7 @@ function createState(doc: ModelNode): EditorState {
       }),
       keymap(baseKeymap),
       emptyLines,
+      proofing.plugin,
       // The host owns dialogs: it asks for the address and calls applyLink.
       bubbleMenu(() => sendMessage({ type: 'requestLink' }))
     ]
@@ -258,6 +264,7 @@ function setContent(body: string): void {
     loading = false
   }
   lastReported = getContent()
+  proofing.reset()
   showNotice(unconverted ? `This scene could not be converted without loss and is read-only. (${unconverted.reason})` : null)
   reportSelection()
 }
@@ -338,7 +345,15 @@ const implemented: Partial<EditorWindow> = {
     })
     return ids
   },
-  getProofingStatus: (): ProofingStatus => ({ enabled: false, checking: false, grammarCount: 0, spellingCount: 0 }),
+  getProofingStatus: (): ProofingStatus => proofing.status(),
+  setGrammarCheckEnabled: enabled => proofing.setEnabled(enabled),
+  setGrammarIssues: (issuesJson, requestId) => proofing.setFindings(issuesJson, requestId),
+  scrollToNextIssue: type => proofing.scrollToNext(type),
+  // Desktop shows proofing status in the shell; there is no in-frame bar yet.
+  setProofingStatusHosted: enabled => document.body.classList.toggle('proofing-status-hosted', enabled),
+  setContextMenuLabels: labelsJson => {
+    try { labels = { ...labels, ...JSON.parse(labelsJson) } } catch { /* keep the previous labels */ }
+  },
 
   setTheme: (...colors: string[]) => {
     window.applyFrameTheme(colors, ['--bg', '--fg', '--caret', '--selection-bg', '--page-bg', '--page-fg',
