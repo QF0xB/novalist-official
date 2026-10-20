@@ -11,8 +11,8 @@ import type { NodeViewConstructor } from 'prosemirror-view'
 import 'prosemirror-view/style/prosemirror.css'
 import type { EditorWindow, ProofingStatus } from '../renderer/src/views/editor/editorBridge'
 import { convertScene } from '../sceneModel/convert.ts'
-import { isSceneDocument, parseScene, serializeScene } from '../sceneModel/format.ts'
-import { emptyScene, sceneFragmentToHtml, sceneFromHtml } from '../sceneModel/html.ts'
+import { isSceneDocument, parseScene } from '../sceneModel/format.ts'
+import { emptyScene, sceneFragmentToHtml, sceneFromHtml, sceneToHtml } from '../sceneModel/html.ts'
 import { sceneSchema } from '../sceneModel/schema.ts'
 import { bubbleMenu } from './bubbleMenu.ts'
 import { formattingState, setAlignment, setParagraphStyle, toggleList } from './commands.ts'
@@ -216,7 +216,7 @@ function plainText(doc: ModelNode): string {
 
 function reportContentChanged(): void {
   if (unconverted) return
-  const body = serializeScene(view.state.doc)
+  const body = sceneHtml(view.state.doc)
   if (body === lastReported) return
   lastReported = body
   sendMessage({ type: 'contentChanged', html: body, plainText: plainText(view.state.doc) })
@@ -235,7 +235,11 @@ function showNotice(text: string | null): void {
   notice.hidden = !text
 }
 
-/** Loads a scene body: a version 1 document, or legacy HTML converted on load. */
+/**
+ * Loads a scene body: HTML, read into the editing model when that is lossless,
+ * or a scene document saved by an earlier build of this prototype. Both are
+ * saved back as HTML.
+ */
 function setContent(body: string): void {
   if (body === getContent()) return
   let doc: ModelNode
@@ -269,8 +273,17 @@ function setContent(body: string): void {
   reportSelection()
 }
 
+/**
+ * Scenes stay HTML on disk, exactly as Novalist has always stored them: the
+ * editing model is converted from HTML on load and back to HTML on save, so
+ * exports, search, Git and every other reader of scene files keep working.
+ */
+function sceneHtml(doc: ModelNode): string {
+  return sceneToHtml(document, doc)
+}
+
 function getContent(): string {
-  return unconverted ? unconverted.body : serializeScene(view.state.doc)
+  return unconverted ? unconverted.body : sceneHtml(view.state.doc)
 }
 
 // ── Hotkeys: the host owns every shortcut that is not text editing ─

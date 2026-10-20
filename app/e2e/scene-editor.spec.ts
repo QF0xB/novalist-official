@@ -14,8 +14,8 @@ test.beforeEach(async ({ page }) => {
 async function load(page: Page, body: string): Promise<void> {
   await page.evaluate(value => (window as unknown as EditorWindow).setContent(value), body)
 }
-async function content(page: Page): Promise<{ format: string; version: number; doc: { content: unknown[] } }> {
-  return JSON.parse(await page.evaluate(() => (window as unknown as EditorWindow).getContent()))
+async function content(page: Page): Promise<string> {
+  return page.evaluate(() => (window as unknown as EditorWindow).getContent())
 }
 async function html(page: Page): Promise<string> {
   return page.locator('#editor').evaluate(element => element.innerHTML)
@@ -43,25 +43,23 @@ test('every bridge function the host may call exists', async ({ page }) => {
     typeof (window as unknown as Record<string, unknown>)[name] !== 'function'), names)).toEqual([])
 })
 
-test('legacy HTML scenes load and are saved as scene documents', async ({ page }) => {
-  await load(page, '<p class="nv-style-heading">Title</p><p>Some <b>bold</b> text.</p>')
-  await expect(page.locator('#editor p')).toHaveCount(2)
-  const saved = await content(page)
-  expect(saved.format).toBe('novalist-scene')
-  expect(saved.version).toBe(1)
-  expect(saved.doc.content).toEqual([
-    { type: 'paragraph', attrs: { style: 'heading' }, content: [{ type: 'text', text: 'Title' }] },
-    { type: 'paragraph', content: [
-      { type: 'text', text: 'Some ' },
-      { type: 'text', marks: [{ type: 'bold', attrs: { tag: 'b' } }], text: 'bold' },
-      { type: 'text', text: ' text.' }
-    ] }
-  ])
-  // A saved document loads back unchanged.
-  const body = await page.evaluate(() => (window as unknown as EditorWindow).getContent())
-  await load(page, '<p>Other</p>')
-  await load(page, body)
-  expect(await page.evaluate(() => (window as unknown as EditorWindow).getContent())).toBe(body)
+test('scenes are read from HTML and saved as the same HTML', async ({ page }) => {
+  const scene = '<p class="nv-style-heading">Title</p><p>Some <b>bold</b> text.</p>'
+    + '<p><span class="nv-comment" data-comment-id="c1">Noted</span><sup class="nv-fn" data-fn-id="f1">1</sup></p>'
+  await load(page, scene)
+  await expect(page.locator('#editor p')).toHaveCount(3)
+  // Opening and saving without edits changes nothing in the file.
+  expect(await content(page)).toBe(scene)
+  await caretAt(page, 'text.', 5)
+  await page.keyboard.type(' More')
+  expect(await content(page)).toBe(scene.replace('text.</p>', 'text. More</p>'))
+})
+
+test('a scene saved as a JSON document by an earlier build is saved back as HTML', async ({ page }) => {
+  await load(page, '{"format":"novalist-scene","version":1,"doc":{"type":"doc","content":[\n'
+    + '{"type":"paragraph","attrs":{"style":"heading","placeholder":true},"content":[{"type":"text","text":"Chapter 1"}]},\n'
+    + '{"type":"paragraph","attrs":{"placeholder":true}}\n]}}\n')
+  expect(await content(page)).toBe('<p class="nv-style-heading">Chapter 1</p><p><br></p>')
 })
 
 test('typing, Enter and Shift+Enter land at the caret', async ({ page }) => {
@@ -84,8 +82,7 @@ test('an empty line made with Enter is kept as an empty line', async ({ page }) 
   await page.keyboard.press('Enter')
   await page.keyboard.press('Enter')
   await page.keyboard.type('Two')
-  const saved = await content(page)
-  expect(saved.doc.content[1]).toEqual({ type: 'paragraph', attrs: { placeholder: true } })
+  expect(await content(page)).toBe('<p>One</p><p><br></p><p>Two</p>')
 })
 
 test('paragraph styles stay put while typing and splitting', async ({ page }) => {
@@ -202,7 +199,7 @@ test('host shortcuts are forwarded and word deletion stays in the editor', async
   const received = () => page.evaluate(() => (window as unknown as { received: Array<Record<string, unknown>> }).received)
   await expect.poll(async () => (await received()).filter(message => message.type === 'hotkey' && message.key !== 'Control').map(message => message.key)).toEqual(['k'])
   await expect.poll(async () => (await received()).some(message => message.type === 'contentChanged'
-    && JSON.parse(String(message.html)).format === 'novalist-scene' && message.plainText === '!two three')).toBe(true)
+    && message.html === '<p>!two three</p>' && message.plainText === '!two three')).toBe(true)
 })
 
 test('selecting text shows the formatting bubble, which formats without losing the selection', async ({ page }) => {
