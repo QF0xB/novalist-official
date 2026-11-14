@@ -4,7 +4,8 @@ using StreamJsonRpc;
 
 namespace Novalist.Backend.Rpc;
 
-public sealed record HostedAccountDto(string Subject, string DisplayName, bool DeviceRegistered, string? DeviceRegistrationError = null);
+public sealed record HostedAccountDto(string Subject, string DisplayName, bool DeviceRegistered, string? DeviceRegistrationError = null,
+    string? RecoveryToken = null);
 
 public sealed class HostedAccountRpc : IAsyncDisposable
 {
@@ -30,7 +31,7 @@ public sealed class HostedAccountRpc : IAsyncDisposable
             if (signIn is not null) throw new InvalidOperationException("A sign-in is already in progress.");
             signIn = operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         }
-        try { return await ViewAsync(server, await accounts.SignInAsync(server, openBrowser, operation.Token), operation.Token); }
+        try { return await ViewAsync(server, await accounts.SignInAsync(server, openBrowser, operation.Token), operation.Token, true); }
         finally
         {
             lock (gate) { signIn = null; operation.Dispose(); }
@@ -42,7 +43,7 @@ public sealed class HostedAccountRpc : IAsyncDisposable
         RelayServerDiscovery.DiscoverAsync(server, cancellationToken);
 
     [JsonRpcMethod("collaboration/account/enrollDevice")]
-    public async Task EnrollDeviceAsync(Uri server, CancellationToken cancellationToken = default)
+    public async Task<HostedAccountDto> EnrollDeviceAsync(Uri server, CancellationToken cancellationToken = default)
     {
         CancellationTokenSource operation;
         lock (gate)
@@ -50,7 +51,11 @@ public sealed class HostedAccountRpc : IAsyncDisposable
             if (signIn is not null) throw new InvalidOperationException("A sign-in is already in progress.");
             signIn = operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         }
-        try { await accounts.EnrollDeviceAsync(server, openBrowser, operation.Token); }
+        try
+        {
+            var account = await accounts.EnrollDeviceAsync(server, openBrowser, operation.Token);
+            return await ViewAsync(server, account, operation.Token, true);
+        }
         finally { lock (gate) { signIn = null; operation.Dispose(); } }
     }
 
@@ -67,7 +72,13 @@ public sealed class HostedAccountRpc : IAsyncDisposable
         try
         {
             var account = await accounts.ResetIdentityAsync(server, forfeitProjectAccess, openBrowser, operation.Token);
-            return await ViewAsync(server, account, operation.Token);
+            try { await accounts.EnrollDeviceAsync(server, openBrowser, operation.Token); }
+            catch (Exception error) when (!operation.IsCancellationRequested && error is HttpRequestException or InvalidOperationException or
+                InvalidDataException or System.Security.Cryptography.CryptographicException or System.Text.Json.JsonException or OperationCanceledException)
+            {
+                return new(account.Subject, account.DisplayName, false, error.Message);
+            }
+            return await ViewAsync(server, account, operation.Token, true);
         }
         finally { lock (gate) { signIn = null; operation.Dispose(); } }
     }
@@ -99,9 +110,9 @@ public sealed class HostedAccountRpc : IAsyncDisposable
     [JsonRpcMethod("collaboration/account/cancel")]
     public void Cancel() { lock (gate) signIn?.Cancel(); }
 
-    private async Task<HostedAccountDto> ViewAsync(Uri server, HostedAccount account, CancellationToken ct) =>
+    private async Task<HostedAccountDto> ViewAsync(Uri server, HostedAccount account, CancellationToken ct, bool includeRecovery = false) =>
         await accounts.IsDeviceRegisteredAsync(server, account, ct)
-            ? new(account.Subject, account.DisplayName, true)
+            ? new(account.Subject, account.DisplayName, true, RecoveryToken: includeRecovery ? await accounts.GetRecoveryTokenAsync(account, ct) : null)
             : new(account.Subject, account.DisplayName, false, accounts.DeviceRegistrationError(server));
 
     public async ValueTask DisposeAsync()

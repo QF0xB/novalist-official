@@ -26,6 +26,9 @@ public sealed class PersistentDeviceRegistrationTests
         var account = await desktop.Rpc.InvokeAsync<HostedAccountDto>("collaboration/account/signIn", server.Address);
 
         Assert.True(account.DeviceRegistered);
+        Assert.Equal(Assert.Single(desktop.Credentials, pair => pair.Key.StartsWith("recovery-device:", StringComparison.Ordinal)).Value,
+            account.RecoveryToken);
+        Assert.Equal(32, Convert.FromBase64String(account.RecoveryToken!).Length);
         Assert.Equal(1, identity.Authorizations);
         Assert.Equal("0", identity.RequestedMaxAge);
         var registration = Assert.Single(server.Registrations);
@@ -35,7 +38,9 @@ public sealed class PersistentDeviceRegistrationTests
         Assert.Equal(ExpectedNonce(server.Address, registration.Keys, recovery.Keys, proof.Salt!), identity.LastNonce);
         Assert.Single(desktop.Credentials.Keys, key => key.StartsWith("device:", StringComparison.Ordinal));
         Assert.Single(desktop.Credentials.Keys, key => key.StartsWith("recovery-device:", StringComparison.Ordinal));
-        Assert.True((await desktop.Rpc.InvokeAsync<HostedAccountDto>("collaboration/account/status", server.Address)).DeviceRegistered);
+        var status = await desktop.Rpc.InvokeAsync<HostedAccountDto>("collaboration/account/status", server.Address);
+        Assert.True(status.DeviceRegistered);
+        Assert.Null(status.RecoveryToken);
 
         await desktop.Rpc.InvokeAsync("collaboration/account/signOut", server.Address);
         var again = await desktop.Rpc.InvokeAsync<HostedAccountDto>("collaboration/account/signIn", server.Address);
@@ -85,9 +90,13 @@ public sealed class PersistentDeviceRegistrationTests
         var account = await desktop.Rpc.InvokeAsync<HostedAccountDto>("collaboration/account/signIn", server.Address);
 
         Assert.False(account.DeviceRegistered);
+        Assert.Null(account.RecoveryToken);
         Assert.Equal("Writer", (await desktop.Rpc.InvokeAsync<HostedAccountDto>("collaboration/account/status", server.Address)).DisplayName);
         server.RejectRegistration = false;
-        await desktop.Rpc.InvokeAsync("collaboration/account/enrollDevice", server.Address);
+        var enrolled = await desktop.Rpc.InvokeAsync<HostedAccountDto>("collaboration/account/enrollDevice", server.Address);
+        Assert.True(enrolled.DeviceRegistered);
+        Assert.Equal(Assert.Single(desktop.Credentials, pair => pair.Key.StartsWith("recovery-device:", StringComparison.Ordinal)).Value,
+            enrolled.RecoveryToken);
         Assert.True((await desktop.Rpc.InvokeAsync<HostedAccountDto>("collaboration/account/status", server.Address)).DeviceRegistered);
         Assert.Equal(2, identity.Authorizations);
     }

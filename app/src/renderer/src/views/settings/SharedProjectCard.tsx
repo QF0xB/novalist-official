@@ -86,14 +86,16 @@ export function SharedProjectCard({ server, canConnect, intent, name, prepareCon
       <label className="inspector-label" htmlFor="set-collaboration-join">{t('collaboration.invitation')}</label>
       <textarea id="set-collaboration-join" className="dialog-input" value={link} disabled={busy !== null} autoComplete="off"
         onChange={event => setLink(event.target.value)} />
-      <CollaborationDestination id="set-collaboration-destination" busy={busy !== null} onChange={setDestination} />
+      {(!persistent || link.trim()) && <>
+      <CollaborationDestination id="set-collaboration-destination" busy={busy !== null} onChange={setDestination} allowExisting={!persistent} />
       <div className="settings-button-row">
         <button className="dialog-button primary" disabled={!canConnect || busy !== null || !link.trim() || !destination.valid || persistent && destination.existing} onClick={() => void join()}>
           {t('collaboration.join')}
         </button>
-        {loaded && !destination.existing && <button className="dialog-button" disabled={busy !== null || !destination.valid}
+        {!persistent && loaded && !destination.existing && <button className="dialog-button" disabled={busy !== null || !destination.valid}
           onClick={() => void run('copy', [destination.path])}>{t('collaboration.copy')}</button>}
       </div>
+      </>}
        <p className="settings-hint">{t(persistent ? 'collaboration.persistentJoinHint' : 'collaboration.joinHint')}</p>
       </section>}
       </div>

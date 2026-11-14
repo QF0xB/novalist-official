@@ -3,7 +3,7 @@ import { rpc } from '../rpc/client'
 import { useHostedSessionStore } from './hostedSessionStore'
 import { readPreference, writePreference } from './projectPreferences'
 
-interface Account { subject: string; displayName: string; deviceRegistered: boolean; deviceRegistrationError?: string | null }
+interface Account { subject: string; displayName: string; deviceRegistered: boolean; deviceRegistrationError?: string | null; recoveryToken?: string | null }
 interface Configuration { authenticationRequired: boolean; accountIdentityReset?: boolean }
 export function useCollaborationAccount(enabled: boolean, project: string | null = null) {
   const [server, setServer] = useState(() => readPreference(project).server ?? '')
@@ -11,11 +11,12 @@ export function useCollaborationAccount(enabled: boolean, project: string | null
   const [configuration, setConfiguration] = useState<Configuration | null>(null)
   const [busy, setBusy] = useState<'checking' | 'connecting' | 'signIn' | 'signOut' | null>(null)
   const [error, setError] = useState('')
+  const [recoveryToken, setRecoveryToken] = useState('')
   const [retry, setRetry] = useState(0)
   const generation = useRef(0)
   const active = useRef(false)
   const savedServer = useHostedSessionStore(state => state.saved?.server)
-  useEffect(() => { setServer(readPreference(project).server ?? '') }, [project])
+  useEffect(() => { setServer(readPreference(project).server ?? ''); setRecoveryToken('') }, [project])
   // A project's saved session names the server it reconnects to.
   useEffect(() => { if (savedServer) setServer(savedServer) }, [savedServer])
   useEffect(() => {
@@ -57,6 +58,7 @@ export function useCollaborationAccount(enabled: boolean, project: string | null
       }
       writePreference(project, { server: address })
       setServer(address); setAccount(value)
+      setRecoveryToken(value?.recoveryToken ?? '')
       return true
     } catch (reason) { setError(String(reason)); return false }
     finally { active.current = false; setBusy(null) }
@@ -67,21 +69,22 @@ export function useCollaborationAccount(enabled: boolean, project: string | null
     try {
       await rpc.request('collaboration/account/signOut', [server.trim()])
       setAccount(null)
+      setRecoveryToken('')
     } catch (reason) { setError(String(reason)) }
     finally { setBusy(null) }
   }
   const changeServer = (value: string): void => {
     generation.current++
-    setServer(value); setAccount(null); setConfiguration(null); setError(''); setBusy(null)
+    setServer(value); setAccount(null); setConfiguration(null); setError(''); setBusy(null); setRecoveryToken('')
   }
   const enrollDevice = async (): Promise<void> => {
     if (active.current) return
     active.current = true
     generation.current++
-    setError(''); setBusy('signIn')
+    setError(''); setBusy('connecting')
     try {
-      await rpc.request('collaboration/account/enrollDevice', [server.trim()])
-      setAccount(current => current && { ...current, deviceRegistered: true, deviceRegistrationError: null })
+      const value = await rpc.request<Account>('collaboration/account/enrollDevice', [server.trim()])
+      setAccount(value); setRecoveryToken(value.recoveryToken ?? '')
     }
     catch (reason) { setError(String(reason)) }
     finally { active.current = false; setBusy(null) }
@@ -94,13 +97,21 @@ export function useCollaborationAccount(enabled: boolean, project: string | null
     if (active.current || !forfeitProjectAccess) return false
     active.current = true
     generation.current++
-    setError(''); setBusy('signIn')
+    setError(''); setBusy('connecting'); setRecoveryToken('')
     try {
       const value = await rpc.request<Account>('collaboration/account/resetIdentity', [server.trim(), true])
       setAccount(value)
+      setRecoveryToken(value.recoveryToken ?? '')
       return true
-    } catch (reason) { setError(String(reason)); return false }
+    } catch (reason) {
+      setError(String(reason))
+      // Reset may have completed before automatic enrollment was cancelled. Reflect the new identity.
+      try { setAccount(await rpc.request<Account | null>('collaboration/account/status', [server.trim()])) }
+      catch (refreshReason) { setError(String(reason) + '\n' + String(refreshReason)) }
+      return false
+    }
     finally { active.current = false; setBusy(null) }
   }
-  return { server, account, configuration, busy, error, enrollDevice, resetIdentity, signIn, signOut, changeServer, cancel, retry: () => setRetry(value => value + 1) }
+  return { server, account, configuration, busy, error, recoveryToken, dismissRecoveryToken: () => setRecoveryToken(''),
+    enrollDevice, resetIdentity, signIn, signOut, changeServer, cancel, retry: () => setRetry(value => value + 1) }
 }

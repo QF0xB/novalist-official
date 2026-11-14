@@ -29,7 +29,8 @@ export function CollaborationCard(): React.JSX.Element {
   const serverMode = mode === 'hosted' || persistent
   const account = useCollaborationAccount(serverMode && !session, project)
   const anonymous = account.configuration?.authenticationRequired === false
-  const canConnect = account.configuration !== null && account.busy === null && (persistent ? !anonymous : !anonymous || Boolean(name.trim()))
+  const ready = account.configuration !== null && (persistent ? Boolean(account.account?.deviceRegistered) : anonymous || Boolean(account.account))
+  const canConnect = ready && account.busy === null && (!anonymous || Boolean(name.trim()))
   useEffect(() => { setResetConfirm(false); setForfeitAccess(false); setResetComplete(false) }, [account.server, account.account?.subject, mode])
   useEffect(() => {
     if (session) { interacted.current = true; setMode(session.mode); setIntent('share'); writePreference(project, { mode: session.mode }) }
@@ -63,6 +64,7 @@ export function CollaborationCard(): React.JSX.Element {
       {!window.novalist.isMobile && <option value="persistent">{t('collaboration.modePersistent')}</option>}
     </select>
     {!serverMode ? <PeerProjectCard key={mode} steam={mode === 'steam'} intent={intent} /> : <>
+      <details><summary>{t('collaboration.serverHelp')}</summary>
       <p className="settings-hint" id="collaboration-server-help">{t(persistent ? 'collaboration.persistentServerHint' : 'collaboration.serverHint')}</p>
       <div className="settings-button-row">
         <button className="dialog-button" onClick={() => void window.novalist.openExternal('https://github.com/QF0xB/novalist-sync-server')}>
@@ -70,27 +72,36 @@ export function CollaborationCard(): React.JSX.Element {
         <button className="dialog-button" onClick={() => void window.novalist.openExternal('https://github.com/QF0xB/novalist-sync-server/blob/main/docs/' + (persistent ? 'self-hosting.md' : 'relay.md'))}>
           {t(persistent ? 'collaboration.persistentSetupGuide' : 'collaboration.serverSetupGuide')}</button>
       </div>
+      </details>
+      <details open={!ready}><summary>{t('collaboration.server')}{ready ? ': ' + account.server : ''}</summary>
       <label className="inspector-label" htmlFor="set-collaboration-server">{t('collaboration.server')}</label>
       <input id="set-collaboration-server" className="dialog-input" type="url" value={account.server} disabled={account.busy !== null && account.busy !== 'checking' || sharing}
         placeholder="https://" aria-describedby="collaboration-server-help" onChange={event => account.changeServer(event.target.value)} />
-      {(account.busy === 'checking' || account.busy === 'connecting') && <p role="status">{t('collaboration.checkingServer')}</p>}
+      </details>
+      {account.busy === 'checking' && <p role="status">{t('collaboration.checkingServer')}</p>}
+      {account.busy === 'connecting' && <p role="status">{t('collaboration.accountWorking')}</p>}
       {account.account && <p role="status">{t('collaboration.signedIn', { name: account.account.displayName })}</p>}
       {account.busy === 'signIn' && <p role="status">{t('collaboration.browserPending')}</p>}
-      {account.busy === 'signIn' && <button className="dialog-button" onClick={() => void account.cancel()}>{t('collaboration.cancelSignIn')}</button>}
+      {(account.busy === 'signIn' || account.busy === 'connecting') && <button className="dialog-button" onClick={() => void account.cancel()}>{t(account.busy === 'signIn' ? 'collaboration.cancelSignIn' : 'dialog.cancel')}</button>}
       {account.error && <p role="alert">{account.error}</p>}
+      {resetComplete && <p role="status">{t('collaboration.resetComplete')}</p>}
       {persistent && anonymous && <p role="alert">{t('collaboration.persistentRequiresAccount')}</p>}
-      {anonymous ? <>
+      {anonymous && !persistent ? <>
         <label className="inspector-label" htmlFor="set-relay-name">{t('collaboration.peerName')}</label>
         <input id="set-relay-name" className="dialog-input" value={name} maxLength={128} disabled={sharing}
           onChange={event => { setName(event.target.value); localStorage.setItem('novalist.collaboration.name', event.target.value) }} />
-      </> : account.account ? <details open={persistent}><summary tabIndex={0}>{t('collaboration.accountDetails')}</summary>
+      </> : account.account ? <>
+        <details><summary tabIndex={0}>{t('collaboration.accountDetails')}</summary>
         <p className="settings-hint">{t('collaboration.nameHint')}</p>
-        {persistent && (account.account.deviceRegistered ? <p role="status">{t('collaboration.deviceEnrolled')}</p> : <>
+        <button className="dialog-button" disabled={account.busy !== null || sharing} onClick={() => void account.signOut()}>{t('collaboration.signOut')}</button>
+        </details>
+        {persistent && !account.account.deviceRegistered && <section aria-label={t('collaboration.enrollDevice')}>
           <p className="settings-hint">{t('collaboration.enrollHint')}</p>
           {account.account.deviceRegistrationError && <p role="alert">{t('collaboration.registrationFailed', { reason: account.account.deviceRegistrationError })}</p>}
           <button className="dialog-button" disabled={account.busy !== null || sharing} onClick={() => void account.enrollDevice()}>{t('collaboration.enrollDevice')}</button>
-          {resetComplete && <p role="status">{t('collaboration.resetComplete')}</p>}
-          {account.configuration?.accountIdentityReset && (resetConfirm ? <div role="group" aria-label={t('collaboration.resetIdentity')}>
+          {account.configuration?.accountIdentityReset && <details><summary>{t('collaboration.lostDevices')}</summary>
+          <p className="settings-hint">{t('collaboration.resetHint')}</p>
+          {resetConfirm ? <div role="group" aria-label={t('collaboration.resetIdentity')}>
             <p role="alert">{t('collaboration.resetWarning')}</p>
             <label className="settings-hint"><input type="checkbox" checked={forfeitAccess} disabled={account.busy !== null || sharing}
               onChange={event => setForfeitAccess(event.target.checked)} /> {t('collaboration.resetForfeit')}</label>
@@ -102,16 +113,24 @@ export function CollaborationCard(): React.JSX.Element {
               <button className="dialog-button" disabled={account.busy !== null} onClick={() => { setResetConfirm(false); setForfeitAccess(false) }}>{t('dialog.cancel')}</button>
             </div>
           </div> : <button className="dialog-button" disabled={account.busy !== null || sharing}
-            onClick={() => { setResetConfirm(true); setForfeitAccess(false) }}>{t('collaboration.resetIdentity')}</button>)}
-        </>)}
-        <button className="dialog-button" disabled={account.busy !== null || sharing} onClick={() => void account.signOut()}>{t('collaboration.signOut')}</button>
-      </details> : account.configuration ? <div className="settings-button-row">
+            onClick={() => { setResetConfirm(true); setForfeitAccess(false) }}>{t('collaboration.resetIdentity')}</button>}
+          </details>}
+        </section>}
+      </> : account.configuration && !anonymous ? <div className="settings-button-row">
+        <p className="settings-hint">{t('collaboration.signInHint')}</p>
         <button className="dialog-button primary" disabled={account.busy !== null || sharing || !account.server.trim()}
           onClick={() => void account.signIn()}>{t('collaboration.signIn')}</button>
-      </div> : <button className="dialog-button" disabled={account.busy !== null || !account.server.trim()} onClick={account.retry}>{t('collaboration.checkServer')}</button>}
+      </div> : !account.configuration && <button className="dialog-button" disabled={account.busy !== null || !account.server.trim()} onClick={account.retry}>{t('collaboration.checkServer')}</button>}
       {account.error && !anonymous && <button className="dialog-button" disabled={account.busy !== null || sharing} onClick={() => void account.signOut()}>{t('collaboration.forgetSignIn')}</button>}
-      <SharedProjectCard server={account.server} canConnect={canConnect} intent={intent} name={anonymous ? name.trim() : undefined}
-        prepareConnection={account.signIn} persistent={persistent} key={mode} />
+      {persistent && account.recoveryToken ? <section aria-labelledby="collaboration-recovery-title">
+        <h4 id="collaboration-recovery-title">{t('collaboration.saveRecoveryToken')}</h4>
+        <p className="settings-hint">{t('collaboration.recoveryTokenHint')}</p>
+        <label className="inspector-label" htmlFor="collaboration-recovery-token">{t('collaboration.recoveryToken')}</label>
+        <textarea id="collaboration-recovery-token" className="dialog-input" readOnly value={account.recoveryToken}
+          autoComplete="off" spellCheck={false} onFocus={event => event.target.select()} />
+        <button className="dialog-button primary" onClick={account.dismissRecoveryToken}>{t('collaboration.recoveryTokenSaved')}</button>
+      </section> : ready && <SharedProjectCard server={account.server} canConnect={canConnect} intent={intent} name={anonymous ? name.trim() : undefined}
+        prepareConnection={account.signIn} persistent={persistent} key={mode} />}
     </>}
   </div>
 }

@@ -88,6 +88,9 @@ public sealed partial class HostedAccounts
     // Why the last sign-in on this server did not register the device, until a later attempt succeeds.
     public string? DeviceRegistrationError(Uri server) => registrationErrors.GetValueOrDefault(AccountKey(server));
 
+    public Task<string?> GetRecoveryTokenAsync(HostedAccount account, CancellationToken ct) =>
+        credentials.ReadAsync(RecoveryKey(account), ct);
+
     private async Task<bool> HasRegisteredDeviceAsync(Uri server, CancellationToken ct) => (await RegisteredAccountsAsync(server, ct)).Count > 0;
 
     private async Task MarkRegisteredAsync(Uri server, HostedAccount account, CancellationToken ct)

@@ -3,9 +3,10 @@ import { useTranslation } from 'react-i18next'
 
 export interface CollaborationDestinationValue { path: string; valid: boolean; existing: boolean }
 
-export function CollaborationDestination({ id, busy, onChange }: {
+export function CollaborationDestination({ id, busy, onChange, allowExisting = true }: {
   id: string
   busy: boolean
+  allowExisting?: boolean
   onChange(value: CollaborationDestinationValue): void
 }): React.JSX.Element {
   const { t } = useTranslation()
@@ -43,11 +44,11 @@ export function CollaborationDestination({ id, busy, onChange }: {
     } catch (reason) { setError(String(reason)) }
   }
   return <div className="collaboration-destination">
-    <label className="collaboration-checkbox" htmlFor={id + '-existing'}>
+    {allowExisting && <label className="collaboration-checkbox" htmlFor={id + '-existing'}>
       <input id={id + '-existing'} type="checkbox" checked={existing} disabled={busy}
         onChange={event => setExisting(event.target.checked)} />
       {t('collaboration.useExisting')}
-    </label>
+    </label>}
     {!existing && <>
       <label className="inspector-label" htmlFor={id + '-name'}>{t('collaboration.localFolderName')}</label>
       <input id={id + '-name'} className="dialog-input" value={name} disabled={busy}

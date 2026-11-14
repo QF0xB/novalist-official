@@ -91,7 +91,7 @@ public sealed partial class HostedAccounts : IAsyncDisposable
         finally { gate.Release(); }
     }
 
-    public async Task EnrollDeviceAsync(Uri server, Func<Uri, CancellationToken, Task> openBrowser, CancellationToken ct)
+    public async Task<HostedAccount> EnrollDeviceAsync(Uri server, Func<Uri, CancellationToken, Task> openBrowser, CancellationToken ct)
     {
         using var operation = BeginOperation(ct);
         ct = operation.Token;
@@ -108,6 +108,7 @@ public sealed partial class HostedAccounts : IAsyncDisposable
             if (browser is null) await HostedDeviceEnrollment.EnrollAsync(server, device, recovery, account, openBrowser, ct);
             else await HostedDeviceEnrollment.EnrollAsync(server, device, recovery, account, browser, ct);
             await MarkRegisteredAsync(server, account, ct);
+            return account;
         }
         finally { System.Security.Cryptography.CryptographicOperations.ZeroMemory(recoveryKey); }
     }

@@ -60,17 +60,17 @@ public sealed class PersistentIdentityResetTests
 
         var reset = await desktop.Rpc.InvokeAsync<HostedAccountDto>("collaboration/account/resetIdentity", server.Address, true);
 
-        Assert.False(reset.DeviceRegistered);
+        Assert.True(reset.DeviceRegistered);
+        Assert.Equal(32, Convert.FromBase64String(reset.RecoveryToken!).Length);
+        Assert.NotEqual(oldRecovery.Value, reset.RecoveryToken);
         Assert.Equal("writer", reset.Subject);
-        Assert.Equal(beforeAuthorizations + 1, identity.Authorizations);
+        Assert.Equal(beforeAuthorizations + 2, identity.Authorizations);
         Assert.Equal("0", identity.RequestedMaxAge);
-        Assert.StartsWith("novalist/account-reset/", identity.LastNonce);
         Assert.Equal(1, server.ResetCalls);
         Assert.Equal(oldDevice.Value, desktop.Credentials[oldDevice.Key]);
         Assert.Equal(oldRecovery.Value, desktop.Credentials[oldRecovery.Key]);
         var saved = Assert.Single(desktop.Credentials, pair => pair.Key.StartsWith("hosted-account:", StringComparison.Ordinal));
         Assert.Contains("reset:" + server.ResetUser, saved.Value);
-        await desktop.Rpc.InvokeAsync("collaboration/account/enrollDevice", server.Address);
         Assert.True((await desktop.Rpc.InvokeAsync<HostedAccountDto>("collaboration/account/status", server.Address)).DeviceRegistered);
         Assert.Equal(2, desktop.Credentials.Keys.Count(key => key.StartsWith("device:", StringComparison.Ordinal)));
         Assert.NotEqual(server.Registrations[0].Keys.DeviceId, server.Registrations[1].Keys.DeviceId);
@@ -83,6 +83,33 @@ public sealed class PersistentIdentityResetTests
         await desktop.SignInAsync(other.Address);
         await desktop.Rpc.InvokeAsync("collaboration/account/enrollDevice", other.Address);
         Assert.Equal(server.Registrations[0].Keys.DeviceId, Assert.Single(other.Registrations).Keys.DeviceId);
+    }
+
+    [Fact]
+    public async Task FailedAutomaticEnrollmentReturnsTheResetIdentityAndAllowsRetry()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var temp = new TempDir();
+        await using var identity = await TestIdentityProvider.StartAsync(ct);
+        identity.MultiFactorAuthentication = true;
+        await using var server = await PersistentSessionServer.StartAsync(identity.Authority, ct);
+        server.KeyBoundEnrollment = true;
+        server.ResetSupported = true;
+        await using var desktop = new HostedDesktop(Path.Combine(temp.Path, "writer"), identity);
+        await desktop.SignInAsync(server.Address);
+        server.RejectRegistration = true;
+
+        var reset = await desktop.Rpc.InvokeAsync<HostedAccountDto>("collaboration/account/resetIdentity", server.Address, true);
+
+        Assert.Equal(1, server.ResetCalls);
+        Assert.False(reset.DeviceRegistered);
+        Assert.NotEmpty(reset.DeviceRegistrationError!);
+        Assert.Null(reset.RecoveryToken);
+        server.RejectRegistration = false;
+        var registered = await desktop.Rpc.InvokeAsync<HostedAccountDto>("collaboration/account/enrollDevice", server.Address);
+        Assert.True(registered.DeviceRegistered);
+        Assert.NotNull(registered.RecoveryToken);
+        Assert.Equal(1, server.ResetCalls);
     }
 
     [Theory]

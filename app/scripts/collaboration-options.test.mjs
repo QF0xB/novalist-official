@@ -29,7 +29,8 @@ const bundle = await build({
   } }]
 })
 
-async function fixture(t, { mobile = false, loaded = true, session = null, saved = null } = {}) {
+async function fixture(t, { mobile = false, loaded = true, session = null, saved = null, authenticationRequired = false,
+  restored = null, request = null } = {}) {
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://novalist.test/', runScripts: 'outside-only', pretendToBeVisual: true })
   const calls = [], links = []
   let resolveSteam
@@ -37,10 +38,12 @@ async function fixture(t, { mobile = false, loaded = true, session = null, saved
   dom.window.initialSession = { session, saved, busy: null }
   dom.window.projectLoaded = loaded
   dom.window.novalist = { isMobile: mobile, pickFolder: async () => '/chosen-folder', openExternal: async url => { links.push(url); return true } }
-  dom.window.rpc = { request: async method => {
+  dom.window.rpc = { request: async (method, params) => {
     calls.push(method)
     if (method === 'collaboration/steam/status') return steam
-    if (method === 'collaboration/account/configuration') return { authenticationRequired: false }
+    if (method === 'collaboration/account/configuration') return { authenticationRequired, accountIdentityReset: true }
+    if (method === 'collaboration/account/status') return restored
+    if (request) return request(method, params)
     throw new Error('Unexpected RPC: ' + method)
   } }
   dom.window.eval(bundle.outputFiles[0].text)
@@ -102,12 +105,12 @@ test('choosing a destination before Steam detection finishes keeps the selected 
 
 test('a retained relay connection remains discoverable instead of reverting to the new default', async t => {
   const f = await fixture(t)
-  f.dom.window.sessions.setState({ saved: { server: 'https://relay.example', projectId: 'saved-project' } })
+  f.dom.window.sessions.setState({ saved: { mode: 'hosted', server: 'https://relay.example', projectId: 'saved-project' } })
   await f.waitFor(() => f.mode().value === 'hosted')
   f.resolveSteam({ available: true })
   await f.waitFor(() => f.dom.window.document.querySelector('option[value="steam"]'))
   assert.equal(f.mode().value, 'hosted')
-  assert.ok(f.dom.window.document.querySelector('[data-shared]'))
+  assert.equal(f.dom.window.document.querySelector('[data-shared]'), null)
 })
 
 test('ending an active relay session keeps its connection type despite Steam availability', async t => {
@@ -123,17 +126,71 @@ test('ending an active relay session keeps its connection type despite Steam ava
 test('persistent hosting uses its saved mode, documents server storage, and rejects anonymous relays', async t => {
   const f = await fixture(t, { saved: { mode: 'persistent', server: 'https://stored.example', projectId: 'saved-project' } })
   assert.equal(f.mode().value, 'persistent')
-  assert.equal(f.dom.window.document.querySelector('[data-shared]').dataset.persistent, 'true')
+  assert.equal(f.dom.window.document.querySelector('[data-shared]'), null)
   assert.equal(f.dom.window.document.querySelector('#collaboration-server-help').textContent, 'collaboration.persistentServerHint')
   const guide = [...f.dom.window.document.querySelectorAll('button')].find(button => button.textContent === 'collaboration.persistentSetupGuide')
   guide.click()
   assert.deepEqual(f.links, ['https://github.com/QF0xB/novalist-sync-server/blob/main/docs/self-hosting.md'])
   await f.waitFor(() => f.dom.window.document.querySelector('[role="alert"]'))
   assert.equal(f.dom.window.document.querySelector('[role="alert"]').textContent, 'collaboration.persistentRequiresAccount')
-  assert.equal(f.dom.window.document.querySelector('[data-shared]').dataset.canConnect, 'false')
+  assert.equal(f.dom.window.document.querySelector('[data-shared]'), null)
   f.resolveSteam({ available: true })
   await f.waitFor(() => f.dom.window.document.querySelector('option[value="steam"]'))
   assert.equal(f.mode().value, 'persistent')
+})
+
+test('persistent setup shows sign-in, registration and recovery token before project controls', async t => {
+  const account = { subject: 'writer', displayName: 'Writer', deviceRegistered: false }
+  const f = await fixture(t, { authenticationRequired: true,
+    saved: { mode: 'persistent', server: 'https://stored.example', projectId: 'saved-project' },
+    request: async method => {
+      if (method === 'collaboration/account/signIn') return account
+      if (method === 'collaboration/account/enrollDevice') return { ...account, deviceRegistered: true, recoveryToken: 'private-token' }
+      throw new Error('Unexpected RPC: ' + method)
+    } })
+  const document = f.dom.window.document
+  const button = key => [...document.querySelectorAll('button')].find(item => item.textContent === 'collaboration.' + key)
+  await f.waitFor(() => button('signIn'))
+  assert.equal(document.querySelector('[data-shared]'), null)
+  assert.equal(button('enrollDevice'), undefined)
+  button('signIn').click()
+  await f.waitFor(() => button('enrollDevice'))
+  assert.equal(document.querySelector('[data-shared]'), null)
+  button('enrollDevice').click()
+  await f.waitFor(() => document.querySelector('#collaboration-recovery-token'))
+  assert.equal(document.querySelector('#collaboration-recovery-token').value, 'private-token')
+  assert.equal(button('enrollDevice'), undefined)
+  assert.equal(document.querySelector('[data-shared]'), null)
+  assert.equal(document.querySelector('details').open, false)
+  button('recoveryTokenSaved').click()
+  await f.waitFor(() => document.querySelector('[data-shared]'))
+  assert.equal(document.querySelector('[data-shared]').dataset.canConnect, 'true')
+  assert.equal(document.querySelector('#collaboration-recovery-token'), null)
+  assert.equal(f.dom.window.localStorage.getItem('private-token'), null)
+})
+
+test('reset finishes with the automatically registered device and its new recovery token', async t => {
+  const account = { subject: 'writer', displayName: 'Writer', deviceRegistered: false }
+  const f = await fixture(t, { authenticationRequired: true, restored: account,
+    saved: { mode: 'persistent', server: 'https://stored.example', projectId: 'saved-project' },
+    request: async (method, params) => {
+      assert.equal(method, 'collaboration/account/resetIdentity')
+      assert.deepEqual(Array.from(params), ['https://stored.example', true])
+      return { ...account, deviceRegistered: true, recoveryToken: 'new-private-token' }
+    } })
+  const document = f.dom.window.document
+  const button = key => [...document.querySelectorAll('button')].find(item => item.textContent === 'collaboration.' + key)
+  await f.waitFor(() => button('resetIdentity'))
+  button('resetIdentity').click()
+  await f.waitFor(() => button('resetConfirm'))
+  assert.equal(button('resetConfirm').disabled, true)
+  document.querySelector('input[type="checkbox"]').click()
+  await f.waitFor(() => !button('resetConfirm').disabled)
+  button('resetConfirm').click()
+  await f.waitFor(() => document.querySelector('#collaboration-recovery-token'))
+  assert.equal(document.querySelector('#collaboration-recovery-token').value, 'new-private-token')
+  assert.equal(button('enrollDevice'), undefined)
+  assert.equal(f.calls.filter(method => method === 'collaboration/account/enrollDevice').length, 0)
 })
 
 test('mobile keeps its current connection choices without offering persistent hosting', async t => {

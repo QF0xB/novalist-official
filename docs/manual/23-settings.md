@@ -72,16 +72,19 @@ A relay-only deployment cannot store persistent projects.
 
 Enter its base URL and sign in. The first sign-in on a device asks for fresh
 multi-factor authentication in the browser and registers the device in the same
-step; **Account details** then shows that the device is registered. Later
+step. Novalist then shows your **Recovery token**. Save it outside the app (for
+example, in a password manager), then choose **I have saved the token — continue**.
+The token proves your recovery identity; it is not a backup of project files or
+project encryption keys. Later
 sign-ins on that device do not force multi-factor authentication again. If
 registration did not complete (for example, the server is older, or this device
-already had keys for the account), **Account details** offers
+already had keys for the account), Novalist offers
 **Register this device**, which opens the browser for fresh multi-factor
 authentication once more. Keep your app's secure credential store: it holds
 device keys, project keys and the recovery identity. Signing in on another computer does not transfer those project keys.
 
 If every authorized device and the recovery credentials are lost, supporting
-servers offer **Reset lost-device identity** under **Account details** when the
+servers offer **Reset lost-device identity** under **Lost access to all your devices?** when the
 device is unregistered. Read the warning and tick the confirmation that you are
 giving up all previous project access and ownership, then choose **Reset identity
 with fresh MFA**. Complete fresh multi-factor authentication in your browser.
@@ -90,8 +93,9 @@ one for the same sign-in; it preserves shared history and your local files.
 This does not recover encryption keys or transfer ownership. A project whose
 only owner was the old identity may no longer have an accessible owner.
 
-After the reset, choose **Register this device** and complete the separate
-browser-MFA enrollment. Ask project owners for new invitations. Old local
+After the reset, device registration starts automatically. Complete its
+browser-MFA steps and save the new recovery token. If registration is interrupted,
+use **Register this device** to retry. Ask project owners for new invitations. Old local
 credentials are retained separately, and signing into other servers is
 unaffected. End any active collaboration session before resetting. Servers that
 do not advertise this capability do not show the reset action.
@@ -101,6 +105,9 @@ Choose **Share** to upload an encrypted checkpoint of the open project, then
 must only be sent to the intended writer. The invited writer selects the same
 mode and server, registers their device, pastes the link and chooses a **new**
 folder. Existing-copy joining remains available in relay and direct modes.
+Project controls appear after sign-in and device registration are complete.
+When joining, paste the invitation first to reveal the local folder controls.
+Server setup help and account details remain collapsed until you need them.
 
 The server stores only encrypted project content and update history. Invited
 writers can join and catch up while the owner is offline. Ending your local
