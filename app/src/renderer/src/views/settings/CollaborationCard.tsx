@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { rpc } from '../../rpc/client'
 import { SharedProjectCard } from './SharedProjectCard'
@@ -31,7 +31,7 @@ export function CollaborationCard(): React.JSX.Element {
   const anonymous = account.configuration?.authenticationRequired === false
   const ready = account.configuration !== null && (persistent ? Boolean(account.account?.deviceRegistered) : anonymous || Boolean(account.account))
   const canConnect = ready && account.busy === null && (!anonymous || Boolean(name.trim()))
-  useEffect(() => { setResetConfirm(false); setForfeitAccess(false); setResetComplete(false) }, [account.server, account.account?.subject, mode])
+  useLayoutEffect(() => { setResetConfirm(false); setForfeitAccess(false); setResetComplete(false) }, [account.server, account.account?.subject, mode])
   useEffect(() => {
     if (session) { interacted.current = true; setMode(session.mode); setIntent('share'); writePreference(project, { mode: session.mode }) }
     // Preserve reconnect controls and any choice or input made during Steam detection.
